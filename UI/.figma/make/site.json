@@ -1,0 +1,10 @@
+{
+  "description": "Analyze website URLs with AI-powered phishing detection offering clear risk scores, detailed explanations, and comprehensive security analytics for users.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

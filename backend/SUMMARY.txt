@@ -1,0 +1,1 @@
+Summary: Feature extractor expanded from 8 to 27 features, but training pipeline still uses only 8 features. Model files expect 8 features. Test suite passes. No real-world accuracy claims possible with synthetic test data.

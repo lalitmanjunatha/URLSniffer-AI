@@ -1,0 +1,125 @@
+"""Feature extraction utilities for URLSniffer.
+
+This module provides a small deterministic extractor that turns a raw URL string
+into a feature dictionary suitable for ML models.  No network calls are made – the
+logic is purely syntactic and operates on the URL string.  The feature set is
+kept intentionally simple to keep the training pipeline lightweight and to
+illustrate the approach.
+
+Feature set
+=============
+- ``url_length``: Total character count of the URL.
+- ``scheme``: Binary flag indicating whether the scheme is HTTP/HTTPS.
+- ``has_ip``: Binary flag if the host part is an IPv4 address.
+- ``has_punycode``: Binary flag if any hostname component is a punycode label.
+- ``percent_encoding``: Binary flag if the URL contains percent-encoded
+  sequences.
+- ``hyphen_count``: Total count of '-' characters in the host, path, query and
+  fragment.
+- ``digit_count``: Total count of digits in the entire URL.
+- ``subdomain_count``: Number of sub‑domain components; ``netloc`` with two
+  labels results in 0, three labels results in 1, etc.
+
+All features are normalised to the same scale where appropriate for quick
+model training and inference.
+
+The extractor is deliberately stateless; tests can call it directly without
+requiring any environment set‑up.
+"""
+
+from __future__ import annotations
+
+import re
+from urllib.parse import urlparse
+
+__all__ = ["extract_features_from_url"]
+
+# Regular expression to match IPv4 addresses.
+_IPV4_RE = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+
+# Regular expression to detect percent encoding.
+_PERCENT_RE = re.compile(r"%[0-9A-Fa-f]{2}")
+
+# Regular expression to detect punycode labels.
+_PUNY_RE = re.compile(r"xn--")
+
+
+def _is_ipv4(host: str) -> bool:
+    """Return True if *host* is an IPv4 address.
+
+    The function performs each octet numeric check to reject values > 255.
+    """
+    if not _IPV4_RE.match(host):
+        return False
+    parts = host.split(".")
+    for part in parts:
+        # Leading zeros are allowed but should not produce values > 255.
+        if int(part) > 255:
+            return False
+    return True
+
+
+def _has_punycode(host: str) -> bool:
+    """Return True if any component of *host* contains punycode."""
+    return any(_PUNY_RE.search(part) for part in host.split("."))
+
+
+def _percent_encoded(url: str) -> bool:
+    """Return True if the URL contains percent‑encoded bytes."""
+    return bool(_PERCENT_RE.search(url))
+
+
+def extract_features_from_url(url: str) -> dict:
+    """Extract a deterministic feature dictionary from *url*.
+
+    Parameters
+    ----------
+    url: str
+        The URL to analyse.
+
+    Returns
+    -------
+    dict
+        Mapping of feature name to numeric value.
+    """
+
+    parsed = urlparse(url)
+    # Normalise the scheme to lower case.
+    scheme = parsed.scheme.lower()
+
+    host = parsed.hostname or ""
+    path = parsed.path or ""
+    query = parsed.query or ""
+    fragment = parsed.fragment or ""
+
+    full = f"{scheme}://{host}{path}"
+    if query:
+        full += f"?{query}"
+    if fragment:
+        full += f"#{fragment}"
+
+    url_length = len(url)
+
+    scheme_flag = 1 if scheme in {"http", "https"} else 0
+    has_ip_flag = 1 if _is_ipv4(host) else 0
+    has_puny_flag = 1 if _has_punycode(host) else 0
+    percent_flag = 1 if _percent_encoded(url) else 0
+    hyphen_count = len([c for c in host + path + query + fragment if c == "-"])
+    digit_count = len([c for c in url if c.isdigit()])
+    # Count subdomains: number of labels minus two (TLD + SLD). Clamp at 0.
+    # For IP addresses, we treat as having no subdomains.
+    if has_ip_flag:
+        subdomains = 0
+    else:
+        subdomains = max(0, len(host.split(".")) - 2)
+
+    return {
+        "url_length": url_length,
+        "scheme": scheme_flag,
+        "has_ip": has_ip_flag,
+        "has_punycode": has_puny_flag,
+        "percent_encoding": percent_flag,
+        "hyphen_count": hyphen_count,
+        "digit_count": digit_count,
+        "subdomain_count": subdomains,
+    }

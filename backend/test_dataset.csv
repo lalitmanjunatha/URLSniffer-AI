@@ -1,0 +1,11 @@
+url,label
+https://example.com,0
+http://legitimate-site.com,0
+https://google.com/search,0
+https://github.com/user/repo,0
+http://192.168.1.1,0
+https://paypa1.com/login,1
+http://amaz0n-secure.com,1
+https://g00gle.com.attacker.com,1
+http://login-update.com,1
+https://secure-banking.com.verify.net,1
